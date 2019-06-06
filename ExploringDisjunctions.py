@@ -58,16 +58,18 @@ def print_solution(data, manager, routing, assignment):
         plan_output = 'Route for vehicle {}:\n'.format(vehicle_id)
         route_distance = 0
         route_load = 0
+        arc_cost = 0
         while not routing.IsEnd(index):
             node_index = manager.IndexToNode(index)
             route_load += data['demands'][node_index]
-            plan_output += ' {0} Load({1}) -> '.format(node_index, route_load)
+            plan_output += ' {0} Load({1}) Cost({2}) -> '.format(node_index, route_load, arc_cost)
             previous_index = index
             index = assignment.Value(routing.NextVar(index))
-            route_distance += routing.GetArcCostForVehicle(
+            arc_cost = routing.GetArcCostForVehicle(
                 previous_index, index, vehicle_id)
-        plan_output += ' {0} Load({1})\n'.format(
-            manager.IndexToNode(index), route_load)
+            route_distance += arc_cost
+        plan_output += ' {0} Load({1}) Cost({2})\n'.format(
+            manager.IndexToNode(index), route_load, arc_cost)
         plan_output += 'Distance of the route: {}m\n'.format(route_distance)
         plan_output += 'Load of the route: {}\n'.format(route_load)
         print(plan_output)
