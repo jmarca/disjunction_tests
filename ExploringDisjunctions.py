@@ -81,12 +81,12 @@ def print_solution(data, manager, routing, assignment):
 
 def main():
     parser = argparse.ArgumentParser(description='Play around with various options relating to disjunctions')
-    parser.add_argument('--cardinality_disjunction', type=bool, dest='multi_disjunctions',
+    parser.add_argument('-c,--cardinality_disjunction', type=bool, dest='multi_disjunctions',
                         default=False,
                         help='whether or not to use the max cardinality disjunction')
-    parser.add_argument('-p,--penalty', type=int, dest='penalty', default=0,
+    parser.add_argument('-p,--cardinality_penalty', type=int, dest='penalty', default=0,
                         help='penalty value to use for cardinality disjunction')
-    parser.add_argument('-c,--cardinality', type=int, dest='cardinality', default=2,
+    parser.add_argument('--cardinality', type=int, dest='cardinality', default=2,
                         help='max cardinality to use')
     parser.add_argument('-d,--disjunctions', type=bool, dest='single_disjunctions',
                         default=False,
