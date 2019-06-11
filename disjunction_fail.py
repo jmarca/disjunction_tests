@@ -7,14 +7,28 @@ import argparse
 import numpy as np
 
 def vehicle_dummy_nodes(data):
-    """slot in a dummy node for this vehicle"""
+    """slot in a dummy node for this vehicle.  Must go to dummy node from depot"""
     matrix = data['distance_matrix']
+    regular_nodes = range(1,len(data['demands']))
     new_node = len(matrix[0])
     # distance from depot to new node is 0, from new node to all other
     # nodes is 0, but only given vehicle can fisit new node
-    for row in matrix:
-        row.append(0)
-    matrix.append(list(np.zeros_like(matrix[0])))
+    for rowidx in range(len(matrix)):
+        row = matrix[rowidx]
+
+        if rowidx == 0:
+            # fix up first row
+            for node in regular_nodes:
+                row[node] = 10000
+            row.append(0)
+        else:
+            row.append(10000)
+
+        matrix[rowidx] = row
+    new_row = list(10000*np.ones_like(matrix[0]))
+    for node in regular_nodes:
+        new_row[node] = 3
+    matrix.append(new_row)
     data['distance_matrix'] = matrix
     return new_node
 
@@ -69,6 +83,7 @@ def print_solution(data, manager, routing, assignment):
     """Prints assignment on console."""
     total_distance = 0
     total_load = 0
+    num_demand_nodes = len(data['demands'])
     for vehicle_id in range(0,len(data['vehicle_costs'])):
         index = routing.Start(vehicle_id)
         plan_output = 'Route for vehicle {}:\n'.format(vehicle_id)
@@ -77,7 +92,10 @@ def print_solution(data, manager, routing, assignment):
         arc_cost = 0
         while not routing.IsEnd(index):
             node_index = manager.IndexToNode(index)
-            route_load += data['demands'][node_index]
+            load = 0
+            if node_index < num_demand_nodes:
+                load = data['demands'][node_index]
+            route_load += load
             plan_output += ' {0} Load({1}) Cost({2}) -> '.format(node_index, route_load, arc_cost)
             previous_index = index
             index = assignment.Value(routing.NextVar(index))
@@ -107,6 +125,7 @@ def vehicle_distance_callback(data, vehicle, manager, from_index, to_index):
     # Convert from routing variable Index to distance matrix NodeIndex.
     from_node = manager.IndexToNode(from_index)
     to_node = manager.IndexToNode(to_index)
+    # print(from_node,to_node,data['distance_matrix'][from_node][to_node]*data['vehicle_costs'][vehicle])
     return data['distance_matrix'][from_node][to_node]*data['vehicle_costs'][vehicle]
 
 def demand_callback(data, manager,from_index):
@@ -146,8 +165,15 @@ def main():
     """Solve the CVRP problem."""
     # Instantiate the data problem.
     data = create_data_model(args)
-    num_nodes = len(data['demands'])
     num_veh = len(data['vehicle_costs'])
+
+    if args.fake_nodes:
+        for veh_pair in range(0, num_veh//2):
+            newnode_1 = vehicle_dummy_nodes(data)
+            newnode_2 = vehicle_dummy_nodes(data)
+        print(data['distance_matrix'])
+
+    num_nodes = len(data['distance_matrix'])
     # Create the routing index manager.
     manager = pywrapcp.RoutingIndexManager(
         num_nodes, num_veh, data['depot'])
@@ -155,7 +181,6 @@ def main():
     # Create Routing Model.
     routing = pywrapcp.RoutingModel(manager)
     solver = routing.solver()
-
 
     transit_callback_index = routing.RegisterTransitCallback(partial(distance_callback,
                                                                      data,
@@ -229,19 +254,29 @@ def main():
             #
             solver.Add(combo_on * single_on == 0)
         if args.fake_nodes:
-            newnode_1 = vehicle_dummy_nodes(data)
-            newnode_2 = vehicle_dummy_nodes(data)
-            solver.Add(routing.VehicleVar(newnode_1)) == combo
-            solver.Add(routing.VehicleVar(newnode_2)) == single
-            routing.AddDisjunction([manager.NodeToIndex(newnode_1),
-                                    manager.NodeToIndex(newnode_2)],
-                                   10000)
+            newnode_1 = manager.NodeToIndex(len(data['demands']) + 2*veh_pair)
+            newnode_2 = manager.NodeToIndex(len(data['demands']) + 2*veh_pair + 1)
+
+            node1_on = routing.VehicleVar(newnode_1) > -1
+            node1_combo = routing.VehicleVar(newnode_1) == combo
+            node2_on = routing.VehicleVar(newnode_2) > -1
+            node2_single = routing.VehicleVar(newnode_2) == single
+            conditional_1 = solver.ConditionalExpression(
+                node1_on, node1_combo, 1)
+            conditional_2 = solver.ConditionalExpression(
+                node2_on, node2_single, 1)
+
+            solver.Add(conditional_1>=1)
+            solver.Add(conditional_2>=1)
+            routing.AddDisjunction([newnode_1, newnode_2], -1, 1)
+
+
 
     # optional disjunctions, depending on command line args
     if args.single_disjunctions:
         print('single node disjunction penalty is',args.singlepenalty)
         disjunctions = [routing.AddDisjunction([manager.NodeToIndex(i)],args.singlepenalty)
-                        for i in range(1,num_nodes)]
+                        for i in range(1,len(data['demands']))]
         print('added',len(disjunctions),'disjunctions, one per node')
     # Setting parameters and first solution heuristic.
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
@@ -249,9 +284,9 @@ def main():
     search_parameters.local_search_operators.use_inactive_lns = pywrapcp.BOOL_TRUE
     search_parameters.lns_time_limit.seconds = 10000  # 10000 milliseconds
     search_parameters.first_solution_strategy = (
-    #    routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION)
+        # routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION)
         routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
-    #    routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
+        # routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
 
     if args.log_search:
         search_parameters.log_search = pywrapcp.BOOL_TRUE
@@ -280,7 +315,8 @@ def main():
                   'travel time\n     combo:',end_time_combo,
                   '\n     single:',end_time_single)
         print_solution(data, manager, routing, assignment)
-
+    else:
+        print('no assignment')
 
 if __name__ == '__main__':
     main()
