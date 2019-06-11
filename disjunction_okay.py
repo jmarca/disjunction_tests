@@ -183,7 +183,7 @@ def main():
     # optional disjunctions, depending on command line args
     if args.single_disjunctions:
         print('single node disjunction penalty is',args.singlepenalty)
-        disjunctions = [routing.AddDisjunction([i],args.singlepenalty)
+        disjunctions = [routing.AddDisjunction([manager.NodeToIndex(i)],args.singlepenalty)
                         for i in range(1,num_nodes)]
         print('added',len(disjunctions),'disjunctions, one per node')
     # Setting parameters and first solution heuristic.
