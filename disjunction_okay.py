@@ -42,10 +42,9 @@ def create_data_model(args):
         ]
         data['demands'] = [0, 1, 1, 1, 1, 1 ]
 
-    data['vehicle_capacities'] = [3, 1, 3, 1]
+    data['vehicle_capacities'] = [3, 3]
     data['depot'] = 0
-    data['vehicle_costs'] = [5, 1, 5, 1]
-    #data['vehicle_costs'] = [5, 5, 5, 5]
+    data['vehicle_costs'] = [5, 5]
     return data
 
 
@@ -78,16 +77,32 @@ def print_solution(data, manager, routing, assignment):
     print('Total distance of all routes: {}m'.format(total_distance))
     print('Total load of all routes: {}'.format(total_load))
 
+# Create and register a transit callback.
+def distance_callback(data, manager, from_index, to_index):
+    """Returns the distance between the two nodes."""
+    # Convert from routing variable Index to distance matrix NodeIndex.
+    from_node = manager.IndexToNode(from_index)
+    to_node = manager.IndexToNode(to_index)
+    return data['distance_matrix'][from_node][to_node]
+
+def vehicle_distance_callback(data, vehicle, manager, from_index, to_index):
+    """Returns the distance between the two nodes for a vehicle."""
+    # Convert from routing variable Index to distance matrix NodeIndex.
+    from_node = manager.IndexToNode(from_index)
+    to_node = manager.IndexToNode(to_index)
+    return data['distance_matrix'][from_node][to_node]*data['vehicle_costs'][vehicle]
+
+def demand_callback(data, manager,from_index):
+    """Returns the demand of the node."""
+    # Convert from routing variable Index to demands NodeIndex.
+    from_node = manager.IndexToNode(from_index)
+    if from_node < len( data['demands'] ):
+        return data['demands'][from_node]
+    return 0
+
 
 def main():
     parser = argparse.ArgumentParser(description='Play around with various options relating to disjunctions')
-    parser.add_argument('-c,--cardinality_disjunction', type=bool, dest='multi_disjunctions',
-                        default=False,
-                        help='whether or not to use the max cardinality disjunction')
-    parser.add_argument('-p,--cardinality_penalty', type=int, dest='penalty', default=0,
-                        help='penalty value to use for cardinality disjunction')
-    parser.add_argument('--cardinality', type=int, dest='cardinality', default=2,
-                        help='max cardinality to use')
     parser.add_argument('-d,--disjunctions', type=bool, dest='single_disjunctions',
                         default=False,
                         help='whether or not to use the single-node disjunctions')
@@ -109,62 +124,45 @@ def main():
     # Instantiate the data problem.
     data = create_data_model(args)
     num_nodes = len(data['demands'])
+    num_veh = len(data['vehicle_costs'])
     # Create the routing index manager.
     manager = pywrapcp.RoutingIndexManager(
-        num_nodes, len(data['vehicle_costs']), data['depot'])
+        num_nodes, num_veh, data['depot'])
 
     # Create Routing Model.
     routing = pywrapcp.RoutingModel(manager)
     solver = routing.solver()
 
-    # Create and register a transit callback.
-    def distance_callback(manager, from_index, to_index):
-        """Returns the distance between the two nodes."""
-        # Convert from routing variable Index to distance matrix NodeIndex.
-        from_node = manager.IndexToNode(from_index)
-        to_node = manager.IndexToNode(to_index)
-        return data['distance_matrix'][from_node][to_node]
-
-    def vehicle_distance_callback(vehicle, manager, from_index, to_index):
-        """Returns the distance between the two nodes for a vehicle."""
-        # Convert from routing variable Index to distance matrix NodeIndex.
-        from_node = manager.IndexToNode(from_index)
-        to_node = manager.IndexToNode(to_index)
-        # print(vehicle,data['vehicle_costs'][vehicle])
-        return data['distance_matrix'][from_node][to_node]*data['vehicle_costs'][vehicle]
 
     transit_callback_index = routing.RegisterTransitCallback(partial(distance_callback,
+                                                                     data,
                                                                      manager))
 
     # use per-vehicle arc cost evaluators
 
     vehicle_transits = [
         routing.RegisterTransitCallback(
-            partial(vehicle_distance_callback,v,manager)
-        ) for v in range(0,len(data['vehicle_costs']))]
+            partial(vehicle_distance_callback, data, v, manager)
+        ) for v in range(0,num_veh)]
 
-    vehicle_costs = [routing.SetArcCostEvaluatorOfVehicle(t,v) for (t,v) in zip(vehicle_transits,
-                                                                range(0,len(data['vehicle_costs'])))]
+    vehicle_costs = [
+        routing.SetArcCostEvaluatorOfVehicle(
+            t,v
+        ) for (t,v) in zip(vehicle_transits,
+                           range(0,num_veh))]
 
-    # create travel cost dimension
+    # create travel time dimension dependent on vehicle type
     routing.AddDimensionWithVehicleTransits(
         vehicle_transits,
         0,      # no slack
         300000, # some really large time
         True,
         "Time")
+    time_dimension = routing.GetDimensionOrDie("Time")
 
     # Add Capacity constraint.
-    def demand_callback(manager,from_index):
-        """Returns the demand of the node."""
-        # Convert from routing variable Index to demands NodeIndex.
-        from_node = manager.IndexToNode(from_index)
-        if from_node < len( data['demands'] ):
-            return data['demands'][from_node]
-        return 0
-
     demand_callback_index = routing.RegisterUnaryTransitCallback(
-        partial(demand_callback,manager))
+        partial(demand_callback, data, manager))
     routing.AddDimensionWithVehicleCapacity(
         demand_callback_index,
         0,  # null capacity slack
@@ -173,83 +171,22 @@ def main():
         'Capacity')
 
 
-    # count
-    count_dimension_name = 'count'
-    routing.AddConstantDimension(
-        1, # increment by one every time
-        num_nodes,  # max count is visit all the nodes
-        True,  # set count to zero
-        count_dimension_name)
-    count_dimension = routing.GetDimensionOrDie(count_dimension_name)
+    # # count
+    # count_dimension_name = 'count'
+    # routing.AddConstantDimension(
+    #     1, # increment by one every time
+    #     num_nodes,  # max count is visit all the nodes
+    #     True,  # set count to zero
+    #     count_dimension_name)
+    # count_dimension = routing.GetDimensionOrDie(count_dimension_name)
 
-    indexA1 = routing.End(0);
-    indexA2 = routing.End(1);
-    indexA3 = routing.End(2);
-    indexA4 = routing.End(3);
-    end_count_A1 = count_dimension.CumulVar(indexA1);
-    active_end_A1 = routing.VehicleVar(indexA1) == 0
-
-    end_count_A2 = count_dimension.CumulVar(indexA2);
-    active_end_A2 = routing.VehicleVar(indexA2) == 1
-
-    end_count_A3 = count_dimension.CumulVar(indexA3);
-    active_end_A3 = routing.VehicleVar(indexA3) == 2
-
-    end_count_A4 = count_dimension.CumulVar(indexA4);
-    active_end_A4 = routing.VehicleVar(indexA4) == 3
-
-
-    A1_on = end_count_A1 > 1;
-    A2_on = end_count_A2 > 1;
-    A3_on = end_count_A3 > 1;
-    A4_on = end_count_A4 > 1;
-
-    conditional_1_2 = solver.ConditionalExpression(
-        A1_on,
-        end_count_A2 == 1,
-        1)
-    conditional_2_1 = solver.ConditionalExpression(
-        A2_on,
-        end_count_A1 == 1,
-        1)
-    # solver.Add(conditional_1_2>=1)
-    # solver.Add(conditional_2_1>=1)
-    # solver.Add(A1_on * A2_on == 0);
-    solver.Add(A1_on + A2_on <= 1);
-
-    conditional_3_4 = solver.ConditionalExpression(
-        A3_on,
-        end_count_A4 == 1,
-        1)
-    conditional_4_3 = solver.ConditionalExpression(
-        A4_on,
-        end_count_A3 == 1,
-        1)
-    # solver.Add(conditional_3_4>=1)
-    # solver.Add(conditional_4_3>=1)
-    # solver.Add(A3_on * A4_on == 0);
-    solver.Add(A3_on + A4_on <= 1);
-
-    # disjunctions on nodes
-    # truck cost < Penalty < truck with trailer cost
-    if args.multi_disjunctions:
-        # penalty = 6+data['vehicle_costs'][0] + 2
-        penalty = 10 * data['vehicle_costs'][0] + 1
-        if args.penalty>0:
-            penalty=args.penalty
-        print('max cardinality disjunction penalty is',penalty)
-
-        pickup_nodes = [manager.NodeToIndex(i)
-                            for i in range(1,len(data['demands']))]
-        routing.AddDisjunction(pickup_nodes,penalty,args.cardinality)
-        print('added one max cardinality disjunction across all nodes')
-
+    # optional disjunctions, depending on command line args
     if args.single_disjunctions:
         print('single node disjunction penalty is',args.singlepenalty)
         disjunctions = [routing.AddDisjunction([i],args.singlepenalty)
                         for i in range(1,num_nodes)]
-        print('added',len(disjunctions),'disjunctions, one per node',disjunctions)
-    # Setting first solution heuristic.
+        print('added',len(disjunctions),'disjunctions, one per node')
+    # Setting parameters and first solution heuristic.
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.local_search_operators.use_path_lns = pywrapcp.BOOL_TRUE
     search_parameters.local_search_operators.use_inactive_lns = pywrapcp.BOOL_TRUE
@@ -269,10 +206,6 @@ def main():
     if assignment:
         print('The Objective Value is {0}'.format(assignment.ObjectiveValue()))
         # examine the xor constraint stuff
-        print('A1 end count',assignment.Value(end_count_A1))
-        print('A2 end count',assignment.Value(end_count_A2))
-        print('A3 end count',assignment.Value(end_count_A3))
-        print('A4 end count',assignment.Value(end_count_A4))
 
         print_solution(data, manager, routing, assignment)
 
