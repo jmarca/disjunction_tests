@@ -4,6 +4,22 @@ from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import routing_enums_pb2
 from functools import partial
 import argparse
+import numpy as np
+
+def vehicle_dummy_nodes(data):
+    """slot in a dummy node for this vehicle"""
+    matrix = data['distance_matrix']
+    new_node = len(matrix[0])
+    # distance from depot to new node is 0, from new node to all other
+    # nodes is 0, but only given vehicle can fisit new node
+    for row in matrix:
+        row.append(0)
+    matrix.append(list(np.zeros_like(matrix[0])))
+    data['distance_matrix'] = matrix
+    return new_node
+
+def vehicle_node_constraints(node, vehnum, routing, manager):
+    idx = manager.NodeToIndex(node)
 
 
 def create_data_model(args):
@@ -118,6 +134,12 @@ def main():
     parser.add_argument('--seven', type=bool, dest='size7',
                         default=False,
                         help='whether or not to use 7 demand nodes in problem.  Defaults to false, which will use 5 nodes')
+    parser.add_argument('--cumulative_constraint', type=bool, dest='cumulative_constraint',
+                        default=False,
+                        help='whether or not to use constraints on accumulated time to prevent single unit and combo truck from being used simultaneously')
+    parser.add_argument('--fake_nodes', type=bool, dest='fake_nodes',
+                        default=False,
+                        help='whether or not to use vehicle-specific fake nodes to prevent single unit and combo truck from being used simultaneously')
     args = parser.parse_args()
 
 
@@ -186,26 +208,34 @@ def main():
         # buggy dead reckoning, but truck-trailer is first, truck single unit second
         combo = veh_pair*2
         single = veh_pair*2 + 1
-        index_combo = routing.End(combo)
-        index_single = routing.End(single)
+        if args.cumulative_constraint:
+            index_combo = routing.End(combo)
+            index_single = routing.End(single)
 
-        end_time_combo = time_dimension.CumulVar(index_combo)
-        end_time_single = time_dimension.CumulVar(index_single)
+            end_time_combo = time_dimension.CumulVar(index_combo)
+            end_time_single = time_dimension.CumulVar(index_single)
 
-        combo_on = end_time_combo > 0
-        single_on = end_time_single > 0
+            combo_on = end_time_combo > 0
+            single_on = end_time_single > 0
 
-        # constrain solver to preven both being on
-        # truth table
-        #
-        # combo_on     single_on   multiply  descr
-        #   0             0           0      both unused; okay
-        #   1             0           0      combo on only; okay
-        #   0             1           0      single on only; okay
-        #   1             1           1      both on; prevent
-        #
-        solver.Add(combo_on * single_on == 0)
-
+            # constrain solver to preven both being on
+            # truth table
+            #
+            # combo_on     single_on   multiply  descr
+            #   0             0           0      both unused; okay
+            #   1             0           0      combo on only; okay
+            #   0             1           0      single on only; okay
+            #   1             1           1      both on; prevent
+            #
+            solver.Add(combo_on * single_on == 0)
+        if args.fake_nodes:
+            newnode_1 = vehicle_dummy_nodes(data)
+            newnode_2 = vehicle_dummy_nodes(data)
+            solver.Add(routing.VehicleVar(newnode_1)) == combo
+            solver.Add(routing.VehicleVar(newnode_2)) == single
+            routing.AddDisjunction([manager.NodeToIndex(newnode_1),
+                                    manager.NodeToIndex(newnode_2)],
+                                   10000)
 
     # optional disjunctions, depending on command line args
     if args.single_disjunctions:
