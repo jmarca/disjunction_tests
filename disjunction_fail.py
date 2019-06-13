@@ -3,6 +3,7 @@ from six.moves import xrange
 from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import routing_enums_pb2
 from functools import partial
+from itertools import chain
 import argparse
 import numpy as np
 
@@ -51,16 +52,20 @@ def create_data_model(args):
         data['demands'] = [0, 1, 1, 1, 1 ]
     elif args.size7:
         data['distance_matrix'] = [
-            [0, 3, 3, 3, 3, 3, 3, 3],
-            [3, 0, 1, 1, 1, 1, 1, 1],
-            [3, 1, 0, 1, 1, 1, 1, 1],
-            [3, 1, 1, 0, 1, 1, 1, 1],
-            [3, 1, 1, 1, 0, 1, 1, 1],
-            [3, 1, 1, 1, 1, 0, 1, 1],
-            [3, 1, 1, 1, 1, 1, 0, 1],
-            [3, 1, 1, 1, 1, 1, 1, 0]
+            [0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+            [3, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [3, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [3, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+            [3, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1],
+            [3, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+            [3, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1],
+            [3, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
+            [3, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1],
+            [3, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1],
+            [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]
         ]
-        data['demands'] = [0, 1, 1, 1, 1, 1, 1, 1 ]
+        data['demands'] = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ]
 
     else:
         data['distance_matrix'] = [
@@ -73,10 +78,18 @@ def create_data_model(args):
         ]
         data['demands'] = [0, 1, 1, 1, 1, 1 ]
 
-    data['vehicle_capacities'] = [3, 1, 3, 1]
+    data['vehicle_capacities'] = list(
+        chain.from_iterable([args.combo_capacity,
+                                args.single_capacity]
+                               for _ in range(0,args.vehicles))
+    )
+
+    data['vehicle_costs'] = list(
+        chain.from_iterable([args.combo_cost,
+                                args.single_cost]
+                               for _ in range(0,args.vehicles))
+    )
     data['depot'] = 0
-    data['vehicle_costs'] = [5, 1, 5, 1]
-    #data['vehicle_costs'] = [5, 5, 5, 5]
     return data
 
 
@@ -161,6 +174,16 @@ def main():
     parser.add_argument('--fake_nodes', type=bool, dest='fake_nodes',
                         default=False,
                         help='whether or not to use vehicle-specific fake nodes to prevent single unit and combo truck from being used simultaneously')
+    parser.add_argument('--combo_cost', type=int, dest='combo_cost', default=5,
+                        help='link cost multiplier for using a combo vehicle (truck + trailer)')
+    parser.add_argument('-v,--vehicles', type=int, dest='vehicles', default=2,
+                        help='number of vehicles to use, each optionally being either a single unit (just the truck) or a combo unit (truck + trailer)')
+    parser.add_argument('--combo_capacity', type=int, dest='combo_capacity', default=3,
+                        help='total capacity of a combo vehicle (truck + trailer)')
+    parser.add_argument('--single_cost', type=int, dest='single_cost', default=1,
+                        help='link cost multiplier for using a single vehicle (truck only)')
+    parser.add_argument('--single_capacity', type=int, dest='single_capacity', default=1,
+                        help='total capacity of a single vehicle (truck only)')
     args = parser.parse_args()
 
 
@@ -168,6 +191,8 @@ def main():
     # Instantiate the data problem.
     data = create_data_model(args)
     num_veh = len(data['vehicle_costs'])
+    # assert num_veh == 2 * args.vehicles
+    # assert num_veh == len(data['vehicle_capacities'])
 
     if args.fake_nodes:
         for veh_pair in range(0, num_veh//2):
@@ -268,25 +293,25 @@ def main():
             conditional_2 = solver.ConditionalExpression(
                 node2_on, node2_single, 1)
 
-            solver.Add(conditional_1>=1)
-            solver.Add(conditional_2>=1)
-            # routing.AddDisjunction([newnode_1, newnode_2], -1, 1)
+            # solver.Add(conditional_1>=1)
+            # solver.Add(conditional_2>=1)
+            # # routing.AddDisjunction([newnode_1, newnode_2], -1, 1)
 
-            # Force dummy nodes to go first
-            count_dimension.SetCumulVarSoftUpperBound(newnode_1,
-                                                      1,
-                                                      1000000)
-            count_dimension.SetCumulVarSoftUpperBound(newnode_2,
-                                                      1,
-                                                      1000000)
+            # # Force dummy nodes to go first
+            # count_dimension.SetCumulVarSoftUpperBound(newnode_1,
+            #                                           1,
+            #                                           1000000)
+            # count_dimension.SetCumulVarSoftUpperBound(newnode_2,
+            #                                           1,
+            #                                           1000000)
 
-            #Force minimal usage?
-            index_combo = routing.End(combo)
-            index_single = routing.End(single)
-            combo_used = count_dimension.CumulVar(index_combo) > 2
-            single_used = count_dimension.CumulVar(index_single) > 2
+            # #Force minimal usage?
+            # index_combo = routing.End(combo)
+            # index_single = routing.End(single)
+            # combo_used = count_dimension.CumulVar(index_combo) > 2
+            # single_used = count_dimension.CumulVar(index_single) > 2
 
-            solver.Add(combo_used * single_used == 0)
+            # solver.Add(combo_used * single_used == 0)
 
             # count_dimension.SetCumulVarSoftUpperBound(index_combo,
             #                                           2,
