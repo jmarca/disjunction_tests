@@ -16,8 +16,8 @@ solver decides that it can skip them all.  This is bad for solutions.
 The problem is exposed by running the python program
 disjunction_fail.py.  If you pass `-h` you can see all the options.
 
-```python
- python disjunction_fail.py  -h
+```
+python disjunction_fail.py  -h
 usage: disjunction_fail.py [-h] [-d,--disjunctions]
                            [--singlepenalty SINGLEPENALTY] [-l,--log_search]
                            [--four] [--seven] [--cumulative_constraint]
