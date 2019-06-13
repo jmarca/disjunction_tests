@@ -19,13 +19,14 @@ def vehicle_dummy_nodes(data):
         if rowidx == 0:
             # fix up first row
             for node in regular_nodes:
-                row[node] = 10000
-            row.append(0)
+                row[node] = 1
+            row.append(0) # free to get from depot to dummy node
         else:
-            row.append(10000)
+            row.append(10000) # cant get to other dummy nodes from dummy nodes
 
         matrix[rowidx] = row
     new_row = list(10000*np.ones_like(matrix[0]))
+    new_row[0] = 0 # free to get from new node back to depot
     for node in regular_nodes:
         new_row[node] = 3
     matrix.append(new_row)
@@ -84,6 +85,7 @@ def print_solution(data, manager, routing, assignment):
     total_distance = 0
     total_load = 0
     num_demand_nodes = len(data['demands'])
+    countd = routing.GetDimensionOrDie('count')
     for vehicle_id in range(0,len(data['vehicle_costs'])):
         index = routing.Start(vehicle_id)
         plan_output = 'Route for vehicle {}:\n'.format(vehicle_id)
@@ -96,14 +98,14 @@ def print_solution(data, manager, routing, assignment):
             if node_index < num_demand_nodes:
                 load = data['demands'][node_index]
             route_load += load
-            plan_output += ' {0} Load({1}) Cost({2}) -> '.format(node_index, route_load, arc_cost)
+            plan_output += ' {0} Load({1}) Cost({2}) Count({3})-> '.format(node_index, route_load, arc_cost, assignment.Value(countd.CumulVar(index)))
             previous_index = index
             index = assignment.Value(routing.NextVar(index))
             arc_cost = routing.GetArcCostForVehicle(
                 previous_index, index, vehicle_id)
             route_distance += arc_cost
-        plan_output += ' {0} Load({1}) Cost({2})\n'.format(
-            manager.IndexToNode(index), route_load, arc_cost)
+        plan_output += ' {0} Load({1}) Cost({2}) Count({3})\n'.format(
+            manager.IndexToNode(index), route_load, arc_cost, assignment.Value(countd.CumulVar(index)))
         plan_output += 'Distance of the route: {}m\n'.format(route_distance)
         plan_output += 'Load of the route: {}\n'.format(route_load)
         print(plan_output)
@@ -219,14 +221,14 @@ def main():
         'Capacity')
 
 
-    # # count
-    # count_dimension_name = 'count'
-    # routing.AddConstantDimension(
-    #     1, # increment by one every time
-    #     num_nodes,  # max count is visit all the nodes
-    #     True,  # set count to zero
-    #     count_dimension_name)
-    # count_dimension = routing.GetDimensionOrDie(count_dimension_name)
+    # count
+    count_dimension_name = 'count'
+    routing.AddConstantDimension(
+        1, # increment by one every time
+        num_nodes,  # max count is visit all the nodes
+        True,  # set count to zero
+        count_dimension_name)
+    count_dimension = routing.GetDimensionOrDie(count_dimension_name)
 
     # set constraints such that truck, truck and trailer cannot both be used
     for veh_pair in range(0, num_veh//2):
@@ -268,7 +270,30 @@ def main():
 
             solver.Add(conditional_1>=1)
             solver.Add(conditional_2>=1)
-            routing.AddDisjunction([newnode_1, newnode_2], -1, 1)
+            # routing.AddDisjunction([newnode_1, newnode_2], -1, 1)
+
+            # Force dummy nodes to go first
+            count_dimension.SetCumulVarSoftUpperBound(newnode_1,
+                                                      1,
+                                                      1000000)
+            count_dimension.SetCumulVarSoftUpperBound(newnode_2,
+                                                      1,
+                                                      1000000)
+
+            #Force minimal usage?
+            index_combo = routing.End(combo)
+            index_single = routing.End(single)
+            combo_used = count_dimension.CumulVar(index_combo) > 2
+            single_used = count_dimension.CumulVar(index_single) > 2
+
+            solver.Add(combo_used * single_used == 0)
+
+            # count_dimension.SetCumulVarSoftUpperBound(index_combo,
+            #                                           2,
+            #                                           100)
+            # count_dimension.SetCumulVarSoftUpperBound(index_single,
+            #                                           2,
+            #                                           100)
 
 
 
