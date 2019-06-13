@@ -154,24 +154,24 @@ def demand_callback(data, manager,from_index):
 
 def main():
     parser = argparse.ArgumentParser(description='Play around with various options relating to disjunctions')
-    parser.add_argument('-d,--disjunctions', type=bool, dest='single_disjunctions',
+    parser.add_argument('-d,--disjunctions', action='store_true', dest='single_disjunctions',
                         default=False,
                         help='whether or not to use the single-node disjunctions')
     parser.add_argument('--singlepenalty', type=int, dest='singlepenalty', default=1,
                         help='penalty value to use for single element disjunction')
-    parser.add_argument('-l,--log_search', type=bool, dest='log_search',
+    parser.add_argument('-l,--log_search', action='store_true', dest='log_search',
                         default=False,
                         help='whether or not to output the solver search log')
-    parser.add_argument('--four', type=bool, dest='size4',
+    parser.add_argument('--four', action='store_true', dest='size4',
                         default=False,
                         help='whether or not to use 4 demand nodes in problem.  Defaults to false, which will use 5 nodes')
-    parser.add_argument('--seven', type=bool, dest='size7',
+    parser.add_argument('--seven', action='store_true', dest='size7',
                         default=False,
                         help='whether or not to use 7 demand nodes in problem.  Defaults to false, which will use 5 nodes')
-    parser.add_argument('--cumulative_constraint', type=bool, dest='cumulative_constraint',
+    parser.add_argument('--cumulative_constraint', action='store_true', dest='cumulative_constraint',
                         default=False,
                         help='whether or not to use constraints on accumulated time to prevent single unit and combo truck from being used simultaneously')
-    parser.add_argument('--fake_nodes', type=bool, dest='fake_nodes',
+    parser.add_argument('--fake_nodes', action='store_true', dest='fake_nodes',
                         default=False,
                         help='whether or not to use vehicle-specific fake nodes to prevent single unit and combo truck from being used simultaneously')
     parser.add_argument('--combo_cost', type=int, dest='combo_cost', default=5,
