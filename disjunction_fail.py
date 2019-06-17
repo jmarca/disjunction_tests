@@ -327,13 +327,27 @@ def main():
         print('added',len(disjunctions),'disjunctions, one per node')
     # Setting parameters and first solution heuristic.
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+    search_parameters.time_limit.seconds =  60  # timelimit 1 minute
     search_parameters.local_search_operators.use_path_lns = pywrapcp.BOOL_TRUE
     search_parameters.local_search_operators.use_inactive_lns = pywrapcp.BOOL_TRUE
     search_parameters.lns_time_limit.seconds = 10000  # 10000 milliseconds
     search_parameters.first_solution_strategy = (
-        # routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION)
-        routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
-        # routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
+        # routing_enums_pb2.FirstSolutionStrategy.LOCAL_CHEAPEST_ARC)  # works
+        # routing_enums_pb2.FirstSolutionStrategy.GLOBAL_CHEAPEST_ARC) # works
+        # routing_enums_pb2.FirstSolutionStrategy.SAVINGS)    # works
+        # routing_enums_pb2.FirstSolutionStrategy.FIRST_UNBOUND_MIN_VALUE)    # crazy suboptimal
+        # routing_enums_pb2.FirstSolutionStrategy.AUTOMATIC)    # suboptimal
+        # routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)   # suboptimal
+        # routing_enums_pb2.FirstSolutionStrategy.PATH_MOST_CONSTRAINED_ARC) # suboptimal
+        # routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION) # no assignment
+        # routing_enums_pb2.FirstSolutionStrategy.LOCAL_CHEAPEST_INSERTION)    # no assignment
+        # routing_enums_pb2.FirstSolutionStrategy.ALL_UNPERFORMED) # no assignment
+        # routing_enums_pb2.FirstSolutionStrategy.BEST_INSERTION)    # no assignment
+        # routing_enums_pb2.FirstSolutionStrategy.CHRISTOFIDES)    # no assginment
+        # routing_enums_pb2.FirstSolutionStrategy.SWEEP)    # no assignment
+        # routing_enums_pb2.FirstSolutionStrategy.SEQUENTIAL_CHEAPEST_INSERTION) # no assignment
+    # search_parameters.local_search_metaheuristic = (
+    #     routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
 
     if args.log_search:
         search_parameters.log_search = pywrapcp.BOOL_TRUE
