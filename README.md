@@ -697,6 +697,11 @@ With 6 vehicles they both find the best solution (248).
 
 I just don't know.
 
+## The fix: use guided local search
+
+Okay, I think I fixed it.  I just turned on "guided local search"
+properly and it works.  Will make it a command line flag to finish the
+story soon.
 
 
 # License
