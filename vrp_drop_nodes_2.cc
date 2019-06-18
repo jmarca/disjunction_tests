@@ -14,6 +14,8 @@
 // [START program]
 // [START import]
 #include <vector>
+#include <getopt.h>
+#include <stdio.h>     /* for printf */
 #include "ortools/constraint_solver/routing.h"
 #include "ortools/constraint_solver/routing_enums.pb.h"
 #include "ortools/constraint_solver/routing_index_manager.h"
@@ -200,7 +202,7 @@ void VrpDropNodes() {
   //FirstSolutionStrategy::ALL_UNPERFORMED);
   searchParameters.set_local_search_metaheuristic(
         LocalSearchMetaheuristic::GUIDED_LOCAL_SEARCH);
-  searchParameters.set_log_search(true);
+  //searchParameters.set_log_search(true);
   searchParameters.mutable_time_limit()->set_seconds(10);
   // [END parameters]
 
@@ -216,7 +218,133 @@ void VrpDropNodes() {
 }
 }  // namespace operations_research
 
+
+/* Flag set by ‘--logging’. */
+static int logging_flag;
+
+/* Flag set by ‘--disjunctions’. */
+static int disjunctions_flag;
+
+/* Flag set by ‘--cumulative_constraint’. */
+static int constraint_flag;
+
+/* Flag set by ‘--fake_nodes’. */
+static int fake_nodes_flag;
+
+/* Flag set by ‘--fake_constraints’. */
+static int fake_constraints_flag;
+
+struct modelparams
+{
+  int singlepenalty;
+  int vehicles;
+  int single_cost;
+  int combo_cost;
+  int single_capacity;
+  int combo_capacity;
+  int timelimit;
+  modelparams() :
+    singlepenalty(1), vehicles(2), single_cost(1), single_capacity(1), combo_cost(10), combo_capacity(5), timelimit(10) {}
+
+};
+
 int main(int argc, char** argv) {
+
+  int c;
+  int digit_optind = 0;
+  modelparams *param = new modelparams();
+  param->singlepenalty = 1;
+  param->vehicles = 2;
+  param->single_cost = 1;
+  param->single_capacity = 1;
+  param->combo_cost = 10;
+  param->combo_capacity = 5;
+  param->timelimit = 10;
+
+  while (1){
+    static struct option long_options[] =
+      {
+       /* These options set a flag. */
+       {"logging", no_argument,            &logging_flag, 1},
+       {"disjunctions",   no_argument,     &disjunctions_flag, 1},
+       {"constraint",   no_argument,       &constraint_flag, 1},
+       {"fake_nodes",   no_argument,       &fake_nodes_flag, 1},
+       {"fake_nodes_constraint", no_argument, &fake_constraints_flag, 1},
+       /* These options don’t set a flag.
+          We distinguish them by their indices. */
+       {"node_disjunction_penalty",  required_argument, 0, 'n'},
+       {"timelimit",  required_argument, 0, 't'},
+       {"single_cost",  required_argument, 0, 'r'},
+       {"single_capacity",  required_argument, 0, 's'},
+       {"combo_cost",  required_argument, 0, 'x'},
+       {"combo_capacity",  required_argument, 0, 'y'},
+       {"vehicles",  required_argument, 0, 'v'},
+       {0, 0, 0, 0}
+      };
+    /* getopt_long stores the option index here. */
+    int option_index = 0;
+    c = getopt_long (argc, argv, "a:b:c:d:e:f:v:",
+                     long_options, &option_index);
+
+    /* Detect the end of the options. */
+    if (c == -1)
+      break;
+
+    switch (c)
+      {
+      case 0:
+        /* If this option set a flag, do nothing else now. */
+        printf ("case 0, option %s", long_options[option_index].name);
+        printf ("\n");
+        if (long_options[option_index].flag != 0)
+          break;
+        break;
+
+      case 1:
+        /* If this option set a flag, do nothing else now. */
+        printf ("case 1, option %s", long_options[option_index].name);
+        printf ("\n");
+        if (long_options[option_index].flag != 0)
+          break;
+        break;
+
+      case 'a':
+        param->singlepenalty = atoi(optarg);
+        break;
+
+      case 'b':
+        param->timelimit = atoi(optarg);
+        break;
+
+      case 'c':
+        param->single_cost = atoi(optarg);
+        break;
+
+      case 'd':
+        param->single_capacity = atoi(optarg);
+        break;
+
+      case 'e':
+        param->combo_cost = atoi(optarg);
+        break;
+
+      case 'f':
+        param->combo_capacity = atoi(optarg);
+        break;
+
+      case 'v':
+        param->vehicles = atoi(optarg);
+        break;
+
+      default:
+        printf("?? getopt returned character code 0%o ??\n", c);
+        if (atoi(optarg))
+          printf (" with arg %s", optarg);
+        printf ("\n");
+        abort();
+
+      }
+  }
   operations_research::VrpDropNodes();
   return EXIT_SUCCESS;
 }
