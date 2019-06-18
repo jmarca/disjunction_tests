@@ -163,9 +163,9 @@ void VrpDropNodes() {
   // [START time_constraint]
   std::string time{"Time"};
   routing.AddDimension(transit_callback_index,  // transit callback index
-                       int64{30},               // allow waiting time
-                       int64{30},               // maximum time per vehicle
-                       true,  // Don't force start cumul to zero
+                       int64{0},               // no slack
+                       int64{3000000},               // big number for horizon
+                       true,  // force start time cumul to zero
                        time);
   const RoutingDimension& time_dimension = routing.GetDimensionOrDie(time);
 
