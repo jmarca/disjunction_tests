@@ -237,8 +237,8 @@ def main():
         0,      # no slack
         300000, # some really large time
         True,
-        "Time")
-    time_dimension = routing.GetDimensionOrDie("Time")
+        "Cost")
+    cost_dimension = routing.GetDimensionOrDie("Cost")
 
     # Add Capacity constraint.
     demand_callback_index = routing.RegisterUnaryTransitCallback(
@@ -269,8 +269,8 @@ def main():
             index_combo = routing.End(combo)
             index_single = routing.End(single)
 
-            end_time_combo = time_dimension.CumulVar(index_combo)
-            end_time_single = time_dimension.CumulVar(index_single)
+            end_time_combo = cost_dimension.CumulVar(index_combo)
+            end_time_single = cost_dimension.CumulVar(index_single)
 
             combo_on = end_time_combo > 0
             single_on = end_time_single > 0
@@ -369,8 +369,8 @@ def main():
             index_combo = routing.End(combo)
             index_single = routing.End(single)
 
-            end_time_combo_var = time_dimension.CumulVar(index_combo)
-            end_time_single_var = time_dimension.CumulVar(index_single)
+            end_time_combo_var = cost_dimension.CumulVar(index_combo)
+            end_time_single_var = cost_dimension.CumulVar(index_single)
 
             end_time_combo = assignment.Value(end_time_combo_var)
             end_time_single = assignment.Value(end_time_single_var)
