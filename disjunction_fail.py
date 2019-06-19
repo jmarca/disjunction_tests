@@ -231,7 +231,7 @@ def main():
         ) for (t,v) in zip(vehicle_transits,
                            range(0,num_veh))]
 
-    # create travel time dimension dependent on vehicle type
+    # create travel cost dimension dependent on vehicle type
     routing.AddDimensionWithVehicleTransits(
         vehicle_transits,
         0,      # no slack
@@ -275,7 +275,7 @@ def main():
             combo_on = end_time_combo > 0
             single_on = end_time_single > 0
 
-            # constrain solver to preven both being on
+            # constrain solver to prevent both being on
             # truth table
             #
             # combo_on     single_on   multiply  descr
