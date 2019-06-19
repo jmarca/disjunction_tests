@@ -37,6 +37,8 @@ static int fake_nodes_flag;
 /* Flag set by ‘--fake_constraints’. */
 static int fake_constraints_flag;
 
+/* Flag set by ‘--real_distances’. */
+static int real_distances_flag;
 struct modelparams
 {
   int singlepenalty;
@@ -51,11 +53,27 @@ struct modelparams
 
 };
 
-
-namespace operations_research {
-  // [START data_model]
-  struct DataModel {
-    const std::vector<std::vector<int64>> distance_matrix{
+const std::vector<std::vector<int64>>
+  real_distance_matrix{
+                  {0, 5480, 7760, 6960, 5820, 2740, 5020, 1940, 3080, 1940, 5360, 5020, 3880, 3540, 4680, 7760, 6620},
+                  {5480, 0, 684, 308, 194, 502, 730, 354, 696, 742, 1084, 594, 480, 674, 1016, 868, 1210},
+                  {7760, 684, 0, 992, 878, 502, 274, 810, 468, 742, 400, 1278, 1164, 1130, 788, 1552, 754},
+                  {6960, 308, 992, 0, 114, 650, 878, 502, 844, 890, 1232, 514, 628, 822, 1164, 560, 1358},
+                  {5820, 194, 878, 114, 0, 536, 764, 388, 730, 776, 1118, 400, 514, 708, 1050, 674, 1244},
+                  {2740, 502, 502, 650, 536, 0, 228, 308, 194, 240, 582, 776, 662, 628, 514, 1050, 708},
+                  {5020, 730, 274, 878, 764, 228, 0, 536, 194, 468, 354, 1004, 890, 856, 514, 1278, 480},
+                  {1940, 354, 810, 502, 388, 308, 536, 0, 342, 388, 730, 468, 354, 320, 662, 742, 856},
+                  {3080, 696, 468, 844, 730, 194, 194, 342, 0, 274, 388, 810, 696, 662, 320, 1084, 514},
+                  {1940, 742, 742, 890, 776, 240, 468, 388, 274, 0, 342, 536, 422, 388, 274, 810, 468},
+                  {5360, 1084, 400, 1232, 1118, 582, 354, 730, 388, 342, 0, 878, 764, 730, 388, 1152, 354},
+                  {5020, 594, 1278, 514, 400, 776, 1004, 468, 810, 536, 878, 0, 114, 308, 650, 274, 844},
+                  {3880, 480, 1164, 628, 514, 662, 890, 354, 696, 422, 764, 114, 0, 194, 536, 388, 730},
+                  {3540, 674, 1130, 822, 708, 628, 856, 320, 662, 388, 730, 308, 194, 0, 342, 422, 536},
+                  {4680, 1016, 788, 1164, 1050, 514, 514, 662, 320, 274, 388, 650, 536, 342, 0, 764, 194},
+                  {7760, 868, 1552, 560, 674, 1050, 1278, 742, 1084, 810, 1152, 274, 388, 422, 764, 0, 798},
+                  {6620, 1210, 754, 1358, 1244, 708, 480, 856, 514, 468, 354, 844, 730, 536, 194, 798, 0}
+  };
+const std::vector<std::vector<int64>> simple_distance_matrix{
                                                           {0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3},
                                                           {3, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
                                                           {3, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
@@ -74,6 +92,11 @@ namespace operations_research {
                                                           {3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1},
                                                           {3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0},
     };
+
+namespace operations_research {
+  // [START data_model]
+  struct DataModel {
+    const std::vector<std::vector<int64>> *distance_matrix = &simple_distance_matrix;
     // [START demands]
     const std::vector<int64> demands{
                                      0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -88,6 +111,9 @@ namespace operations_research {
     const RoutingIndexManager::NodeIndex depot{0};
 
     DataModel( modelparams *params){
+      if (real_distances_flag) {
+        distance_matrix = &real_distance_matrix;
+      }
       for (int vehicle_pair = 0; vehicle_pair < params->vehicles/2; ++vehicle_pair) {
 
         vehicle_capacities.push_back(params->combo_capacity);
@@ -160,7 +186,7 @@ namespace operations_research {
 
     // Create Routing Index Manager
     // [START index_manager]
-    RoutingIndexManager manager(data.distance_matrix.size(), data.num_vehicles,
+    RoutingIndexManager manager(data.distance_matrix->size(), data.num_vehicles,
                                 data.depot);
     // [END index_manager]
 
@@ -177,7 +203,7 @@ namespace operations_research {
                                         // Convert from routing variable Index to distance matrix NodeIndex.
                                         auto from_node = manager.IndexToNode(from_index).value();
                                         auto to_node = manager.IndexToNode(to_index).value();
-                                        return data.distance_matrix[from_node][to_node];
+                                        return (*(data.distance_matrix))[from_node][to_node];
                                       });
     // [END transit_callback]
 
@@ -219,10 +245,12 @@ namespace operations_research {
     const RoutingDimension& time_dimension = routing.GetDimensionOrDie(time);
 
     // Allow to drop nodes.
-    int64 penalty{100000};
-    for (int i = 1; i < data.distance_matrix.size(); ++i) {
-      routing.AddDisjunction(
-                             {manager.NodeToIndex(RoutingIndexManager::NodeIndex(i))}, penalty);
+    int64 penalty{params->singlepenalty};
+    if (disjunctions_flag){
+      for (int i = 1; i < data.distance_matrix->size(); ++i) {
+        routing.AddDisjunction(
+                               {manager.NodeToIndex(RoutingIndexManager::NodeIndex(i))}, penalty);
+      }
     }
     // [END capacity_constraint]
     auto solver = routing.solver();
@@ -249,7 +277,9 @@ namespace operations_research {
     //FirstSolutionStrategy::ALL_UNPERFORMED);
     searchParameters.set_local_search_metaheuristic(
                                                     LocalSearchMetaheuristic::GUIDED_LOCAL_SEARCH);
-    //searchParameters.set_log_search(true);
+    if (logging_flag)
+      searchParameters.set_log_search(true);
+
     searchParameters.mutable_time_limit()->set_seconds(10);
     // [END parameters]
 
@@ -281,6 +311,7 @@ int main(int argc, char** argv) {
        {"constraint",   no_argument,       &constraint_flag, 1},
        {"fake_nodes",   no_argument,       &fake_nodes_flag, 1},
        {"fake_nodes_constraint", no_argument, &fake_constraints_flag, 1},
+       {"real_distances",   no_argument,   &real_distances_flag, 1},
        /* These options don’t set a flag.
           We distinguish them by their indices. */
        {"node_disjunction_penalty",  required_argument, 0, 'n'},
