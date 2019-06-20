@@ -189,6 +189,9 @@ def main():
                         help='total capacity of a single vehicle (truck only)')
     parser.add_argument('-t,--timelimit', type=int, dest='timelimit', default=60,
                         help='solver time limit, in seconds; default 60 (one minute)')
+    parser.add_argument('--guided_local', action='store_true', dest='guided_local',
+                        default=False,
+                        help='whether or not to use the guided local search metaheuristic')
     args = parser.parse_args()
 
 
@@ -348,8 +351,9 @@ def main():
         # routing_enums_pb2.FirstSolutionStrategy.CHRISTOFIDES)    # no assginment
         # routing_enums_pb2.FirstSolutionStrategy.SWEEP)    # no assignment
         # routing_enums_pb2.FirstSolutionStrategy.SEQUENTIAL_CHEAPEST_INSERTION) # no assignment
-    search_parameters.local_search_metaheuristic = (
-        routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
+    if args.guided_local:
+        search_parameters.local_search_metaheuristic = (
+            routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
 
     if args.log_search:
         search_parameters.log_search = pywrapcp.BOOL_TRUE
